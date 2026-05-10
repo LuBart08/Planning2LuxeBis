@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Planning Devoirs Hebdo Personnalisé (Adaptatif)</title>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: #f7f9fc;
+    color: #222;
+    margin: 20px;
+    line-height: 1.5;
+  }
+  h1, h2 {
+    text-align: center;
+    color: #005f73;
+    margin-bottom: 0.5em;
+  }
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #d1e7e5;
+    border-radius: 8px;
+    margin-bottom: 1.5em;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0;
+  }
+  th, td {
+    border: 1.5px solid #94d2bd;
+    padding: 8px 10px;
+    vertical-align: top;
+    min-width: 120px;
+    word-wrap: break-word;
+    background: #e0f2f1;
+  }
+  th {
+    background: #0a9396;
+    color: white;
+    font-size: 0.9rem;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  td.routines {
+    background: #a7c7c7;
+    font-style: italic;
+  }
+  td.pause {
+    background: #94d2bd;
+    font-weight: bold;
+  }
+  td.day {
+    font-weight: bold;
+    background: #ee9b00;
+    color: white;
+    text-align: center;
+    position: sticky;
+    left: 0;
+    z-index: 1;
+  }
+  /* Ensure the day cell background doesn't overlap the header */
+  tbody tr:first-child td.day {
+      z-index: 2;
+  }
+
+  td[contenteditable="true"] {
+    background: #fff;
+    cursor: text;
+    min-height: 25px;
+  }
+  td[contenteditable="true"]:focus {
+    outline: 2px solid #0a9396;
+    background: #caf0f8;
+  }
+  .legend, .guide {
+    max-width: 800px;
+    margin: 2em auto;
+    background: #caf0f8;
+    border-radius: 8px;
+    padding: 15px 25px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #023047;
+    border: 1px solid #ade8f4;
+  }
+  .btn-container {
+    text-align: center;
+    margin-bottom: 1.5em;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+  button, label[for="importFile"] {
+    background: #0a9396;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    display: inline-block;
+  }
+  button:hover, label[for="importFile"]:hover {
+    background: #007d8a;
+    transform: translateY(-2px);
+  }
+  input[type="file"] {
+    display: none;
+  }
+  .checkbox-cell {
+    text-align: center;
+    background: #def7e3;
+    vertical-align: middle;
+  }
+  .message-box {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #2c3e50;
+    color: white;
+    padding: 12px 25px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1001;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out, top 0.3s ease-in-out;
+  }
+  .message-box.show {
+    opacity: 1;
+    visibility: visible;
+    top: 30px;
+  }
+  
+  /* Media queries for responsiveness */
+  @media (max-width: 768px) {
+    body {
+        margin: 10px;
+        font-size: 14px;
+    }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.2rem; }
+    
+    .btn-container {
+        flex-direction: column;
+        align-items: center;
+    }
+    button, label[for="importFile"] {
+        width: 90%;
+        max-width: 350px;
+    }
+
+    table {
+        /* Force table to be wide enough to scroll, preventing content wrapping */
+        min-width: 1200px; 
+    }
+    th, td {
+        padding: 6px 8px;
+        font-size: 0.85rem;
+    }
+  }
+
+  @media print {
+    body {
+      margin: 10mm;
+      background: white;
+      color: black;
+      font-size: 10pt;
+    }
+    .table-container {
+        overflow: visible;
+        border: none;
+        box-shadow: none;
+    }
+    table, th, td {
+      border: 1px solid black !important;
+    }
+    th, td {
+      background: white !important;
+      color: black !important;
+    }
+    td.routines { background: #e0e0e0 !important; }
+    td.pause { background: #c0c0c0 !important; }
+    td.day { background: #cccccc !important; }
+    td[contenteditable="true"] {
+      background: white !important;
+      outline: none !important;
+      cursor: default !important;
+    }
+    .btn-container, .guide, .legend, .message-box {
+      display: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+<h1>Planning Devoirs Hebdo Personnalisé</h1>
+
+<div class="btn-container">
+  <button id="saveBtn" title="Sauvegarder le planning dans votre navigateur">💾 Sauvegarder</button>
+  <button id="clearBtn" title="Effacer tout le planning">🧹 Effacer</button>
+  <button id="exportBtn" title="Exporter le planning en fichier JSON">📤 Exporter</button>
+  <label for="importFile" title="Importer un planning JSON">📥 Importer</label>
+  <input type="file" id="importFile" accept=".json" />
+</div>
+
+<div class="table-container">
+    <table id="planningTable" spellcheck="false">
+      <thead>
+        <tr>
+          <th>Jours</th>
+          <th>Urgentes - Obligatoires - Longues - ⚡</th>
+          <th>Urgentes - Obligatoires - Longues</th>
+          <th>Urgentes - Obligatoires - Courtes - ⚡</th>
+          <th>Urgentes - Obligatoires - Courtes</th>
+          <th>Importantes - Facultatives - Longues - ⚡</th>
+          <th>Temps estimé</th>
+          <th>Importantes - Facultatives - Longues</th>
+          <th>Temps estimé</th>
+          <th>Importantes - Facultatives - Courtes - ⚡</th>
+          <th>Temps estimé</th>
+          <th>Importantes - Facultatives - Courtes</th>
+          <th>Temps estimé</th>
+          <th>Routines quotidiennes</th>
+          <th>Pause / Temps libre</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="day">Lundi</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true">Boîte à mots vocabulaire (15 min)</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="routines" contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+        <tr>
+          <td class="day">Mardi</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true">Boîte à mots vocabulaire (15 min)</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="routines" contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+        <tr>
+          <td class="day">Mercredi</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true">Boîte à mots vocabulaire (15 min)</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="routines" contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+        <tr>
+          <td class="day">Jeudi</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true">Boîte à mots vocabulaire (15 min)</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="routines" contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+        <tr>
+          <td class="day">Vendredi</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true">Boîte à mots vocabulaire (15 min)</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="routines" contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+        <tr>
+          <td class="day">Samedi</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true">Boîte à mots vocabulaire (15 min)</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="routines" contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+        <tr>
+          <td class="day">Dimanche</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true">Boîte à mots vocabulaire (15 min)</td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="routines" contenteditable="true"></td>
+          <td contenteditable="true"></td>
+        </tr>
+      </tbody>
+    </table>
+</div>
+
+<h2>Bloc gros devoirs — découpage et suivi</h2>
+<div class="table-container">
+    <table id="bigTasksTable" spellcheck="false">
+      <thead>
+        <tr>
+          <th>Tâche / Projet</th>
+          <th>Durée totale (min)</th>
+          <th>Bloc 1</th>
+          <th>Fait ✅</th>
+          <th>Bloc 2</th>
+          <th>Fait ✅</th>
+          <th>Bloc 3</th>
+          <th>Fait ✅</th>
+          <th>Bloc 4</th>
+          <th>Fait ✅</th>
+          <th>Bloc 5</th>
+          <th>Fait ✅</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+        </tr>
+        <tr>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td contenteditable="true"></td>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+        </tr>
+      </tbody>
+    </table>
+</div>
+
+<div class="guide">
+  <h2>Guide d'utilisation du planning</h2>
+  <ol>
+    <li><strong>Préparation avant la semaine :</strong><br>
+      Liste toutes tes devoirs et projets à venir.<br>
+      Estime la durée pour chaque tâche (surtout les non urgentes).<br>
+      Note les grosses tâches dans le bloc “Gros devoirs” pour pouvoir les découper.
+    </li>
+    <li><strong>Remplir le planning :</strong><br>
+      Commence par inscrire les tâches urgentes et obligatoires, en les plaçant dans les colonnes correspondantes (longues ou courtes, énergivores ou non).<br>
+      Découpe les gros devoirs en blocs et répartis-les dans les créneaux longues en priorité.<br>
+      Complète avec les tâches importantes mais facultatives, en notant le temps estimé à côté.<br>
+      Intègre les routines quotidiennes (ex : boîte à mots dans Important – Facultatif – Courte).<br>
+      N’oublie pas de laisser des pauses et du temps libre.
+    </li>
+    <li><strong>Pendant la semaine :</strong><br>
+      Coche les tâches quand tu les as faites pour visualiser ta progression.<br>
+      Ajuste ton planning si une tâche urgente arrive.<br>
+      Commence toujours par les tâches longues/difficiles pour utiliser ton énergie au mieux.
+    </li>
+  </ol>
+</div>
+
+<div id="messageBox" class="message-box"></div>
+
+<script>
+  // Function to show a temporary message
+  function showMessage(message) {
+    const messageBox = document.getElementById('messageBox');
+    messageBox.textContent = message;
+    messageBox.classList.add('show');
+    setTimeout(() => {
+      messageBox.classList.remove('show');
+    }, 2500); // Message disappears after 2.5 seconds
+  }
+
+  // Function to get table data
+  function getTableData(tableId) {
+    const table = document.getElementById(tableId);
+    const rows = table.querySelectorAll('tbody tr');
+    const data = [];
+
+    rows.forEach(row => {
+      const rowData = [];
+      const cells = row.querySelectorAll('td');
+      cells.forEach(cell => {
+        if (cell.hasAttribute('contenteditable')) {
+          rowData.push(cell.innerHTML); // Use innerHTML to preserve line breaks
+        } else if (cell.querySelector('input[type="checkbox"]')) {
+          rowData.push(cell.querySelector('input[type="checkbox"]').checked);
+        } else {
+          rowData.push(cell.innerHTML); // For non-editable, non-checkbox cells like day names
+        }
+      });
+      data.push(rowData);
+    });
+    return data;
+  }
+
+  // Function to set table data
+  function setTableData(tableId, data) {
+    const table = document.getElementById(tableId);
+    const rows = table.querySelectorAll('tbody tr');
+
+    data.forEach((rowData, rowIndex) => {
+        if (!rows[rowIndex]) return; // Avoid errors if table structure changes
+        const cells = rows[rowIndex].querySelectorAll('td');
+        rowData.forEach((cellValue, cellIndex) => {
+            if (!cells[cellIndex]) return;
+            const cell = cells[cellIndex];
+            if (cell.hasAttribute('contenteditable')) {
+                cell.innerHTML = cellValue;
+            } else if (cell.querySelector('input[type="checkbox"]')) {
+                cell.querySelector('input[type="checkbox"]').checked = cellValue;
+            }
+        });
+    });
+  }
+
+  // Save functionality
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    const planningTableData = getTableData('planningTable');
+    const bigTasksTableData = getTableData('bigTasksTable');
+    const allData = {
+      planningTable: planningTableData,
+      bigTasksTable: bigTasksTableData
+    };
+    localStorage.setItem('planningData', JSON.stringify(allData));
+    showMessage('Planning sauvegardé !');
+  });
+
+  // Clear functionality
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    if (confirm("Êtes-vous sûr de vouloir effacer tout le planning ? Cette action est irréversible.")) {
+        // Clear planningTable
+        const planningRows = document.getElementById('planningTable').querySelectorAll('tbody tr');
+        planningRows.forEach(row => {
+          row.querySelectorAll('td[contenteditable="true"]').forEach(cell => {
+            // Do not clear the default "Boîte à mots" text
+            if (!cell.textContent.includes('Boîte à mots vocabulaire')) {
+                 cell.innerHTML = '';
+            }
+          });
+        });
+
+        // Clear bigTasksTable
+        const bigTasksRows = document.getElementById('bigTasksTable').querySelectorAll('tbody tr');
+        bigTasksRows.forEach(row => {
+          row.querySelectorAll('td[contenteditable="true"]').forEach(cell => {
+            cell.innerHTML = '';
+          });
+          row.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.checked = false;
+          });
+        });
+
+        localStorage.removeItem('planningData');
+        showMessage('Planning effacé !');
+    }
+  });
+
+
+  // Export functionality
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const planningTableData = getTableData('planningTable');
+    const bigTasksTableData = getTableData('bigTasksTable');
+    const allData = {
+      planningTable: planningTableData,
+      bigTasksTable: bigTasksTableData
+    };
+    const dataStr = JSON.stringify(allData, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'planning_devoirs.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showMessage('Planning exporté !');
+  });
+
+  // Import functionality
+  document.getElementById('importFile').addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          if (importedData.planningTable && importedData.bigTasksTable) {
+            setTableData('planningTable', importedData.planningTable);
+            setTableData('bigTasksTable', importedData.bigTasksTable);
+            showMessage('Planning importé avec succès !');
+          } else {
+            showMessage('Erreur : Fichier JSON invalide.');
+          }
+        } catch (error) {
+          console.error('Erreur lors de l\'importation du fichier:', error);
+          showMessage('Erreur lors de la lecture du fichier.');
+        }
+      };
+      reader.readAsText(file);
+    }
+  });
+
+  // Load saved data on page load
+  window.addEventListener('load', () => {
+    const savedData = localStorage.getItem('planningData');
+    if (savedData) {
+      try {
+        const allData = JSON.parse(savedData);
+        if (allData.planningTable && allData.bigTasksTable) {
+          setTableData('planningTable', allData.planningTable);
+          setTableData('bigTasksTable', allData.bigTasksTable);
+          showMessage('Planning chargé depuis la dernière sauvegarde.');
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des données sauvegardées:', error);
+        localStorage.removeItem('planningData'); // Clear corrupted data
+        showMessage('Erreur de chargement. Données corrompues effacées.');
+      }
+    }
+  });
+</script>
+
+</body>
+</html>
